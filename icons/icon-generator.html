@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Icon Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      text-align: center;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      margin: 10px;
+    }
+    .container {
+      display: inline-block;
+      margin: 10px;
+    }
+    button {
+      margin: 20px 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <h1>Extension Icon Generator</h1>
+  <p>Click the button below to generate and download the icons</p>
+
+  <div id="canvases"></div>
+
+  <button onclick="generateIcons()">Generate Icons</button>
+  <button onclick="downloadAll()">Download All</button>
+
+  <script>
+    const sizes = [16, 48, 128];
+    const canvases = {};
+
+    // Create canvases
+    sizes.forEach(size => {
+      const container = document.createElement('div');
+      container.className = 'container';
+
+      const label = document.createElement('div');
+      label.textContent = size + 'x' + size;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      canvas.id = 'icon' + size;
+
+      container.appendChild(label);
+      container.appendChild(canvas);
+      document.getElementById('canvases').appendChild(container);
+
+      canvases[size] = canvas;
+    });
+
+    function generateIcons() {
+      sizes.forEach(size => {
+        const canvas = canvases[size];
+        const ctx = canvas.getContext('2d');
+
+        // Clear canvas
+        ctx.clearRect(0, 0, size, size);
+
+        // Background gradient
+        const gradient = ctx.createLinearGradient(0, 0, size, size);
+        gradient.addColorStop(0, '#1976d2');
+        gradient.addColorStop(1, '#1565c0');
+        ctx.fillStyle = gradient;
+
+        // Rounded rectangle background
+        const radius = size * 0.15;
+        ctx.beginPath();
+        ctx.moveTo(radius, 0);
+        ctx.lineTo(size - radius, 0);
+        ctx.quadraticCurveTo(size, 0, size, radius);
+        ctx.lineTo(size, size - radius);
+        ctx.quadraticCurveTo(size, size, size - radius, size);
+        ctx.lineTo(radius, size);
+        ctx.quadraticCurveTo(0, size, 0, size - radius);
+        ctx.lineTo(0, radius);
+        ctx.quadraticCurveTo(0, 0, radius, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // Draw "M" for Markdown
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold ' + (size * 0.5) + 'px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('M', size / 2, size / 2);
+
+        // Draw down arrow at bottom right
+        const arrowSize = size * 0.25;
+        const arrowX = size * 0.75;
+        const arrowY = size * 0.75;
+
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.beginPath();
+        ctx.moveTo(arrowX, arrowY - arrowSize * 0.3);
+        ctx.lineTo(arrowX, arrowY + arrowSize * 0.2);
+        ctx.lineTo(arrowX - arrowSize * 0.3, arrowY - arrowSize * 0.1);
+        ctx.moveTo(arrowX, arrowY + arrowSize * 0.2);
+        ctx.lineTo(arrowX + arrowSize * 0.3, arrowY - arrowSize * 0.1);
+        ctx.stroke();
+      });
+
+      alert('Icons generated! Click "Download All" to save them.');
+    }
+
+    function downloadCanvas(canvas, filename) {
+      const link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+
+    function downloadAll() {
+      sizes.forEach(size => {
+        downloadCanvas(canvases[size], 'icon' + size + '.png');
+      });
+    }
+
+    // Generate icons on load
+    window.onload = generateIcons;
+  </script>
+</body>
+</html>
