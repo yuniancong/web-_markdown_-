@@ -1,17 +1,10 @@
 // DOM elements
 const detectTablesBtn = document.getElementById('detectTables');
-const nextTableBtn = document.getElementById('nextTable');
-const copyMarkdownBtn = document.getElementById('copyMarkdown');
 const selectRangeBtn = document.getElementById('selectRange');
 const statusDiv = document.getElementById('status');
-const tableCountP = document.getElementById('tableCount');
-const currentTableP = document.getElementById('currentTable');
-const previewContent = document.getElementById('previewContent');
 
 // State
 let currentTabId = null;
-let tablesDetected = false;
-let currentMarkdown = '';
 
 // Initialize
 chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -31,38 +24,14 @@ function updateStatus(message, type = 'info') {
   }
 }
 
-// Update UI based on state
-function updateUI(data) {
-  if (data.tableCount !== undefined) {
-    tableCountP.textContent = `Found ${data.tableCount} table(s)`;
-    tablesDetected = data.tableCount > 0;
-    nextTableBtn.disabled = !tablesDetected;
-    copyMarkdownBtn.disabled = !tablesDetected;
-  }
-
-  if (data.currentIndex !== undefined && data.tableCount > 0) {
-    currentTableP.textContent = `Viewing table ${data.currentIndex + 1} of ${data.tableCount}`;
-  }
-
-  if (data.markdown !== undefined) {
-    currentMarkdown = data.markdown;
-    previewContent.textContent = data.markdown;
-    copyMarkdownBtn.disabled = !data.markdown;
-  }
-
-  if (data.preview !== undefined) {
-    previewContent.textContent = data.preview;
-  }
-}
-
 // Detect tables in the current page
 detectTablesBtn.addEventListener('click', async () => {
   if (!currentTabId) {
-    updateStatus('No active tab found', 'error');
+    updateStatus('未找到活动标签页', 'error');
     return;
   }
 
-  updateStatus('Detecting tables...');
+  updateStatus('正在检测表格...');
 
   try {
     const response = await chrome.tabs.sendMessage(currentTabId, {
@@ -70,85 +39,30 @@ detectTablesBtn.addEventListener('click', async () => {
     });
 
     if (response.success) {
-      updateStatus(`Found ${response.tableCount} table(s)`, 'success');
-      updateUI(response);
+      if (response.tableCount > 0) {
+        updateStatus(`找到 ${response.tableCount} 个表格，在页面上显示操作面板`, 'success');
+        // Close popup after a short delay so user can see the page
+        setTimeout(() => window.close(), 800);
+      } else {
+        updateStatus('未找到表格，请尝试其他页面', 'error');
+      }
     } else {
-      updateStatus(response.error || 'Failed to detect tables', 'error');
+      updateStatus(response.error || '检测表格失败', 'error');
     }
   } catch (error) {
-    updateStatus('Error: ' + error.message, 'error');
+    updateStatus('错误: ' + error.message, 'error');
     console.error('Detection error:', error);
-  }
-});
-
-// Cycle to next table
-nextTableBtn.addEventListener('click', async () => {
-  if (!currentTabId) {
-    updateStatus('No active tab found', 'error');
-    return;
-  }
-
-  updateStatus('Loading next table...');
-
-  try {
-    const response = await chrome.tabs.sendMessage(currentTabId, {
-      action: 'nextTable'
-    });
-
-    if (response.success) {
-      updateStatus('Table loaded', 'success');
-      updateUI(response);
-    } else {
-      updateStatus(response.error || 'Failed to load next table', 'error');
-    }
-  } catch (error) {
-    updateStatus('Error: ' + error.message, 'error');
-    console.error('Next table error:', error);
-  }
-});
-
-// Copy markdown to clipboard
-copyMarkdownBtn.addEventListener('click', async () => {
-  if (!currentMarkdown) {
-    updateStatus('No content to copy', 'error');
-    return;
-  }
-
-  try {
-    // Use the Clipboard API
-    await navigator.clipboard.writeText(currentMarkdown);
-    updateStatus('Copied to clipboard!', 'success');
-
-    // Reset status after 2 seconds
-    setTimeout(() => {
-      updateStatus('Ready to extract content');
-    }, 2000);
-  } catch (error) {
-    // Fallback to background script if Clipboard API fails
-    try {
-      await chrome.runtime.sendMessage({
-        action: 'copyToClipboard',
-        text: currentMarkdown
-      });
-      updateStatus('Copied to clipboard!', 'success');
-      setTimeout(() => {
-        updateStatus('Ready to extract content');
-      }, 2000);
-    } catch (bgError) {
-      updateStatus('Failed to copy: ' + error.message, 'error');
-      console.error('Copy error:', error, bgError);
-    }
   }
 });
 
 // Select custom range
 selectRangeBtn.addEventListener('click', async () => {
   if (!currentTabId) {
-    updateStatus('No active tab found', 'error');
+    updateStatus('未找到活动标签页', 'error');
     return;
   }
 
-  updateStatus('Click and drag to select a range...');
+  updateStatus('已激活选择模式...');
 
   try {
     const response = await chrome.tabs.sendMessage(currentTabId, {
@@ -156,27 +70,14 @@ selectRangeBtn.addEventListener('click', async () => {
     });
 
     if (response.success) {
-      updateStatus('Range selection mode activated', 'success');
+      updateStatus('请在页面上选择元素', 'success');
+      // Close popup to let user interact with the page
+      setTimeout(() => window.close(), 600);
     } else {
-      updateStatus(response.error || 'Failed to activate range selection', 'error');
+      updateStatus(response.error || '激活选择模式失败', 'error');
     }
   } catch (error) {
-    updateStatus('Error: ' + error.message, 'error');
+    updateStatus('错误: ' + error.message, 'error');
     console.error('Range selection error:', error);
-  }
-});
-
-// Listen for messages from content script
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.action === 'updatePreview') {
-    updateUI(message.data);
-    updateStatus('Content updated', 'success');
-  } else if (message.action === 'rangeSelected') {
-    updateUI({
-      markdown: message.markdown,
-      preview: message.markdown
-    });
-    updateStatus('Range selected and converted', 'success');
-    copyMarkdownBtn.disabled = false;
   }
 });

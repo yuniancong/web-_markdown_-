@@ -1,47 +1,40 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Web to Markdown</title>
+  <title>网页转 Markdown</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <div class="container">
-    <h1>Web to Markdown</h1>
+    <h1>网页转 Markdown</h1>
 
     <div class="status" id="status">
-      Ready to extract content
+      就绪，请选择操作
     </div>
 
     <div class="actions">
       <button id="detectTables" class="btn btn-primary">
-        Detect Tables
-      </button>
-
-      <button id="nextTable" class="btn btn-secondary" disabled>
-        Try Another Table
-      </button>
-
-      <button id="copyMarkdown" class="btn btn-success" disabled>
-        Copy as Markdown
+        📊 检测表格
       </button>
 
       <button id="selectRange" class="btn btn-secondary">
-        Select Custom Range
+        🖱️ 选择自定义内容
       </button>
     </div>
 
-    <div class="info" id="info">
-      <p id="tableCount">No tables detected</p>
-      <p id="currentTable"></p>
-    </div>
-
-    <div class="preview" id="preview">
-      <h3>Preview</h3>
-      <div id="previewContent" class="preview-content">
-        No content selected
-      </div>
+    <div class="tips">
+      <p style="font-size: 12px; color: #666; margin: 12px 0 0 0; line-height: 1.6; padding: 10px; background: #f9f9f9; border-radius: 4px;">
+        <strong style="color: #1976d2;">💡 使用说明：</strong><br>
+        <span style="display: block; margin-top: 5px;">
+        • <strong>检测表格</strong>：自动查找页面中的所有表格<br>
+        • <strong>自定义选择</strong>：点击任意元素转换为 Markdown
+        </span><br>
+        <span style="display: block; margin-top: 5px; font-size: 11px; color: #888;">
+        ℹ️ 点击后会在页面上显示操作面板进行复制
+        </span>
+      </p>
     </div>
   </div>
 
