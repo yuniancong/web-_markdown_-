@@ -9,6 +9,7 @@ let highlightedTarget = null;
 let isRangeSelectionMode = false;
 let actionPanel = null;
 let currentSelectedMarkdown = '';
+let currentSelectedElement = null; // Track currently selected element for adjustment
 
 // Highlight element with overlay - fixed version
 function highlightElement(element) {
@@ -442,11 +443,12 @@ function nextTable() {
   };
 }
 
-// Show action panel after selection
-function showActionPanel(markdown) {
+// Show action panel after selection with range adjustment
+function showActionPanel(markdown, element) {
   removeActionPanel();
 
   currentSelectedMarkdown = markdown;
+  currentSelectedElement = element;
 
   const panel = document.createElement('div');
   panel.id = 'markdown-converter-action-panel';
@@ -462,14 +464,44 @@ function showActionPanel(markdown) {
     z-index: 10000000;
     box-shadow: 0 4px 16px rgba(0,0,0,0.3);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    min-width: 300px;
+    min-width: 350px;
     max-width: 500px;
   `;
 
+  // Check if we can expand or shrink
+  const canExpand = element && element.parentElement && element.parentElement.tagName !== 'HTML' && element.parentElement.tagName !== 'BODY';
+  const canShrink = element && element.children.length > 0;
+
+  // Get element description
+  const elementDesc = getElementDescription(element);
+
   panel.innerHTML = `
     <div style="margin-bottom: 15px;">
-      <h3 style="margin: 0 0 10px 0; color: #1976d2; font-size: 16px;">内容已选定</h3>
-      <p style="margin: 0; color: #666; font-size: 13px;">已转换为 Markdown 格式，您可以：</p>
+      <h3 style="margin: 0 0 5px 0; color: #1976d2; font-size: 16px;">内容已选定</h3>
+      <p style="margin: 0 0 8px 0; color: #888; font-size: 11px;">${elementDesc}</p>
+      <p style="margin: 0; color: #666; font-size: 13px;">已转换为 Markdown 格式</p>
+    </div>
+    <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+      <button id="md-expand-btn" style="
+        flex: 1;
+        padding: 8px 12px;
+        background: ${canExpand ? '#1976d2' : '#ccc'};
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: ${canExpand ? 'pointer' : 'not-allowed'};
+        font-size: 13px;
+      " ${!canExpand ? 'disabled' : ''}>⬆️ 扩大选择</button>
+      <button id="md-shrink-btn" style="
+        flex: 1;
+        padding: 8px 12px;
+        background: ${canShrink ? '#1976d2' : '#ccc'};
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: ${canShrink ? 'pointer' : 'not-allowed'};
+        font-size: 13px;
+      " ${!canShrink ? 'disabled' : ''}>⬇️ 缩小选择</button>
     </div>
     <div style="display: flex; gap: 10px; margin-bottom: 15px;">
       <button id="md-copy-btn" style="
@@ -493,7 +525,7 @@ function showActionPanel(markdown) {
         font-size: 14px;
       ">取消</button>
     </div>
-    <div style="
+    <div id="md-preview" style="
       background: #f5f5f5;
       border: 1px solid #ddd;
       border-radius: 4px;
@@ -501,10 +533,11 @@ function showActionPanel(markdown) {
       max-height: 200px;
       overflow-y: auto;
       font-family: 'Courier New', monospace;
-      font-size: 12px;
+      font-size: 11px;
       white-space: pre-wrap;
       word-break: break-word;
-    ">${markdown.substring(0, 300)}${markdown.length > 300 ? '...' : ''}</div>
+      line-height: 1.4;
+    ">${markdown.substring(0, 400)}${markdown.length > 400 ? '\n...' : ''}</div>
   `;
 
   document.body.appendChild(panel);
@@ -533,6 +566,113 @@ function showActionPanel(markdown) {
     removeActionPanel();
     removeHighlight();
   });
+
+  // Expand selection button
+  if (canExpand) {
+    panel.querySelector('#md-expand-btn').addEventListener('click', () => {
+      expandSelection();
+    });
+  }
+
+  // Shrink selection button
+  if (canShrink) {
+    panel.querySelector('#md-shrink-btn').addEventListener('click', () => {
+      shrinkSelection();
+    });
+  }
+}
+
+// Get a description of the element
+function getElementDescription(element) {
+  if (!element) return '';
+
+  const tag = element.tagName.toLowerCase();
+  let desc = `<${tag}>`;
+
+  if (element.id) {
+    desc += ` #${element.id}`;
+  }
+
+  if (element.className && typeof element.className === 'string') {
+    const classes = element.className.split(' ').filter(c => c && !c.startsWith('markdown-converter'));
+    if (classes.length > 0) {
+      desc += ` .${classes.slice(0, 2).join('.')}`;
+    }
+  }
+
+  return desc;
+}
+
+// Expand selection to parent element
+function expandSelection() {
+  if (!currentSelectedElement || !currentSelectedElement.parentElement) {
+    return;
+  }
+
+  const parent = currentSelectedElement.parentElement;
+
+  // Don't expand to html or body
+  if (parent.tagName === 'HTML' || parent.tagName === 'BODY') {
+    return;
+  }
+
+  // Skip our own overlays
+  if (parent.id === 'markdown-converter-highlight' ||
+      parent.id === 'markdown-converter-instruction' ||
+      parent.id === 'markdown-converter-action-panel') {
+    return;
+  }
+
+  // Update selection
+  currentSelectedElement = parent;
+  highlightElement(parent);
+
+  // Convert to markdown
+  const markdown = elementToMarkdown(parent);
+  currentSelectedMarkdown = markdown;
+
+  // Update the panel
+  showActionPanel(markdown, parent);
+}
+
+// Shrink selection to first meaningful child element
+function shrinkSelection() {
+  if (!currentSelectedElement || currentSelectedElement.children.length === 0) {
+    return;
+  }
+
+  // Find first meaningful child (skip scripts, styles, etc.)
+  let child = null;
+  for (let i = 0; i < currentSelectedElement.children.length; i++) {
+    const c = currentSelectedElement.children[i];
+    const tag = c.tagName.toLowerCase();
+
+    // Skip non-content elements
+    if (tag === 'script' || tag === 'style' || tag === 'noscript' ||
+        c.id === 'markdown-converter-highlight' ||
+        c.id === 'markdown-converter-instruction' ||
+        c.id === 'markdown-converter-action-panel') {
+      continue;
+    }
+
+    child = c;
+    break;
+  }
+
+  if (!child) {
+    return;
+  }
+
+  // Update selection
+  currentSelectedElement = child;
+  highlightElement(child);
+
+  // Convert to markdown
+  const markdown = elementToMarkdown(child);
+  currentSelectedMarkdown = markdown;
+
+  // Update the panel
+  showActionPanel(markdown, child);
 }
 
 function removeActionPanel() {
@@ -541,6 +681,7 @@ function removeActionPanel() {
     actionPanel = null;
   }
   currentSelectedMarkdown = '';
+  currentSelectedElement = null;
 }
 
 // Range selection handlers
@@ -618,8 +759,8 @@ function activateRangeSelection() {
     // Convert element to markdown
     const markdown = elementToMarkdown(element);
 
-    // Show action panel
-    showActionPanel(markdown);
+    // Show action panel with range adjustment
+    showActionPanel(markdown, element);
 
     // Also send to popup
     chrome.runtime.sendMessage({
