@@ -10,6 +10,7 @@ let isRangeSelectionMode = false;
 let actionPanel = null;
 let currentSelectedMarkdown = '';
 let currentSelectedElement = null; // Track currently selected element for adjustment
+let navigationMode = 'expand'; // 'expand' or 'shrink' mode
 
 // Highlight element with overlay - fixed version
 function highlightElement(element) {
@@ -443,7 +444,7 @@ function nextTable() {
   };
 }
 
-// Show action panel after selection with directional navigation
+// Show action panel after selection with mode-based navigation
 function showActionPanel(markdown, element) {
   removeActionPanel();
 
@@ -464,75 +465,97 @@ function showActionPanel(markdown, element) {
     z-index: 10000000;
     box-shadow: 0 4px 16px rgba(0,0,0,0.3);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    min-width: 380px;
+    min-width: 400px;
     max-width: 500px;
   `;
 
-  // Check available directions
-  const canGoUp = element && getValidSibling(element, 'previous') !== null;
-  const canGoDown = element && getValidSibling(element, 'next') !== null;
-  const canGoLeft = element && getValidChild(element) !== null;
-  const canGoRight = element && element.parentElement &&
-                     element.parentElement.tagName !== 'HTML' &&
-                     element.parentElement.tagName !== 'BODY';
-
   // Get element description
   const elementDesc = getElementDescription(element);
+
+  // Check available directions based on current mode
+  const navInfo = getNavigationInfo(element, navigationMode);
 
   panel.innerHTML = `
     <div style="margin-bottom: 15px;">
       <h3 style="margin: 0 0 5px 0; color: #1976d2; font-size: 16px;">内容已选定</h3>
       <p style="margin: 0 0 8px 0; color: #888; font-size: 11px;">${elementDesc}</p>
-      <p style="margin: 0; color: #666; font-size: 12px;">使用方向键精确调整选择范围</p>
+      <p style="margin: 0; color: #666; font-size: 12px;">先选择模式，再用方向键微调</p>
     </div>
 
-    <div style="margin-bottom: 12px;">
-      <p style="margin: 0 0 8px 0; color: #555; font-size: 11px; text-align: center;">
-        ↑上一个 ↓下一个 ←子元素 →父元素
+    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+      <button id="md-mode-expand" style="
+        flex: 1;
+        padding: 10px 16px;
+        background: ${navigationMode === 'expand' ? '#1976d2' : '#e0e0e0'};
+        color: ${navigationMode === 'expand' ? 'white' : '#666'};
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: ${navigationMode === 'expand' ? '600' : '400'};
+        transition: all 0.2s;
+      ">⬆️ 扩大范围</button>
+      <button id="md-mode-shrink" style="
+        flex: 1;
+        padding: 10px 16px;
+        background: ${navigationMode === 'shrink' ? '#1976d2' : '#e0e0e0'};
+        color: ${navigationMode === 'shrink' ? 'white' : '#666'};
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 13px;
+        font-weight: ${navigationMode === 'shrink' ? '600' : '400'};
+        transition: all 0.2s;
+      ">⬇️ 缩小范围</button>
+    </div>
+
+    <div style="margin-bottom: 12px; background: #f9f9f9; padding: 10px; border-radius: 4px;">
+      <p style="margin: 0 0 8px 0; color: #555; font-size: 11px; text-align: center; font-weight: 500;">
+        ${navigationMode === 'expand' ? '扩大模式：导航到更大的元素' : '缩小模式：导航到子元素'}
       </p>
       <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; max-width: 200px; margin: 0 auto;">
         <div></div>
         <button id="md-nav-up" style="
           padding: 10px;
-          background: ${canGoUp ? '#1976d2' : '#e0e0e0'};
-          color: ${canGoUp ? 'white' : '#999'};
+          background: ${navInfo.canGoUp ? '#1976d2' : '#e0e0e0'};
+          color: ${navInfo.canGoUp ? 'white' : '#999'};
           border: none;
           border-radius: 4px;
-          cursor: ${canGoUp ? 'pointer' : 'not-allowed'};
+          cursor: ${navInfo.canGoUp ? 'pointer' : 'not-allowed'};
           font-size: 20px;
-        " ${!canGoUp ? 'disabled' : ''}>↑</button>
+        " ${!navInfo.canGoUp ? 'disabled' : ''}>↑</button>
         <div></div>
 
         <button id="md-nav-left" style="
           padding: 10px;
-          background: ${canGoLeft ? '#1976d2' : '#e0e0e0'};
-          color: ${canGoLeft ? 'white' : '#999'};
+          background: ${navInfo.canGoLeft ? '#1976d2' : '#e0e0e0'};
+          color: ${navInfo.canGoLeft ? 'white' : '#999'};
           border: none;
           border-radius: 4px;
-          cursor: ${canGoLeft ? 'pointer' : 'not-allowed'};
+          cursor: ${navInfo.canGoLeft ? 'pointer' : 'not-allowed'};
           font-size: 20px;
-        " ${!canGoLeft ? 'disabled' : ''}>←</button>
-        <div style="display: flex; align-items: center; justify-content: center; background: #f0f0f0; border-radius: 4px; font-size: 16px;">◉</div>
+        " ${!navInfo.canGoLeft ? 'disabled' : ''}>←</button>
+        <div style="display: flex; align-items: center; justify-content: center; background: ${navigationMode === 'expand' ? '#e3f2fd' : '#fff3e0'}; border-radius: 4px; font-size: 16px; border: 2px solid ${navigationMode === 'expand' ? '#1976d2' : '#ff9800'};">◉</div>
         <button id="md-nav-right" style="
           padding: 10px;
-          background: ${canGoRight ? '#1976d2' : '#e0e0e0'};
-          color: ${canGoRight ? 'white' : '#999'};
+          background: ${navInfo.canGoRight ? '#1976d2' : '#e0e0e0'};
+          color: ${navInfo.canGoRight ? 'white' : '#999'};
           border: none;
           border-radius: 4px;
-          cursor: ${canGoRight ? 'pointer' : 'not-allowed'};
+          cursor: ${navInfo.canGoRight ? 'pointer' : 'not-allowed'};
           font-size: 20px;
-        " ${!canGoRight ? 'disabled' : ''}>→</button>
+        " ${!navInfo.canGoRight ? 'disabled' : ''}>→</button>
 
         <div></div>
         <button id="md-nav-down" style="
           padding: 10px;
-          background: ${canGoDown ? '#1976d2' : '#e0e0e0'};
-          color: ${canGoDown ? 'white' : '#999'};
+          background: ${navInfo.canGoDown ? '#1976d2' : '#e0e0e0'};
+          color: ${navInfo.canGoDown ? 'white' : '#999'};
           border: none;
           border-radius: 4px;
-          cursor: ${canGoDown ? 'pointer' : 'not-allowed'};
+          cursor: ${navInfo.canGoDown ? 'pointer' : 'not-allowed'};
           font-size: 20px;
-        " ${!canGoDown ? 'disabled' : ''}>↓</button>
+        " ${!navInfo.canGoDown ? 'disabled' : ''}>↓</button>
         <div></div>
       </div>
     </div>
@@ -565,7 +588,7 @@ function showActionPanel(markdown, element) {
       border: 1px solid #ddd;
       border-radius: 4px;
       padding: 10px;
-      max-height: 180px;
+      max-height: 160px;
       overflow-y: auto;
       font-family: 'Courier New', monospace;
       font-size: 11px;
@@ -578,16 +601,24 @@ function showActionPanel(markdown, element) {
   document.body.appendChild(panel);
   actionPanel = panel;
 
-  // Add event listeners
+  // Mode toggle listeners
+  panel.querySelector('#md-mode-expand').addEventListener('click', () => {
+    navigationMode = 'expand';
+    showActionPanel(currentSelectedMarkdown, currentSelectedElement);
+  });
+
+  panel.querySelector('#md-mode-shrink').addEventListener('click', () => {
+    navigationMode = 'shrink';
+    showActionPanel(currentSelectedMarkdown, currentSelectedElement);
+  });
+
+  // Copy and cancel listeners
   panel.querySelector('#md-copy-btn').addEventListener('click', async () => {
     try {
       await navigator.clipboard.writeText(currentSelectedMarkdown);
-
-      // Show success message
       const btn = panel.querySelector('#md-copy-btn');
       btn.textContent = '✓ 已复制！';
       btn.style.background = '#4caf50';
-
       setTimeout(() => {
         removeActionPanel();
         removeHighlight();
@@ -603,25 +634,25 @@ function showActionPanel(markdown, element) {
   });
 
   // Navigation button handlers
-  if (canGoUp) {
+  if (navInfo.canGoUp) {
     panel.querySelector('#md-nav-up').addEventListener('click', () => {
       navigateDirection('up');
     });
   }
 
-  if (canGoDown) {
+  if (navInfo.canGoDown) {
     panel.querySelector('#md-nav-down').addEventListener('click', () => {
       navigateDirection('down');
     });
   }
 
-  if (canGoLeft) {
+  if (navInfo.canGoLeft) {
     panel.querySelector('#md-nav-left').addEventListener('click', () => {
       navigateDirection('left');
     });
   }
 
-  if (canGoRight) {
+  if (navInfo.canGoRight) {
     panel.querySelector('#md-nav-right').addEventListener('click', () => {
       navigateDirection('right');
     });
@@ -672,14 +703,18 @@ function getValidSibling(element, direction) {
   return null;
 }
 
-// Get valid first child (skip non-content elements)
-function getValidChild(element) {
+// Get valid child (skip non-content elements)
+function getValidChild(element, position = 'first') {
   if (!element || !element.children || element.children.length === 0) {
     return null;
   }
 
-  for (let i = 0; i < element.children.length; i++) {
-    const child = element.children[i];
+  const children = Array.from(element.children);
+  const startIndex = position === 'first' ? 0 : children.length - 1;
+  const step = position === 'first' ? 1 : -1;
+
+  for (let i = startIndex; position === 'first' ? i < children.length : i >= 0; i += step) {
+    const child = children[i];
     const tag = child.tagName.toLowerCase();
 
     // Skip non-content elements and our own overlays
@@ -694,38 +729,107 @@ function getValidChild(element) {
   return null;
 }
 
-// Navigate in a specific direction
+// Get parent element
+function getValidParent(element) {
+  if (!element || !element.parentElement) return null;
+
+  const parent = element.parentElement;
+  if (parent.tagName === 'HTML' || parent.tagName === 'BODY') return null;
+  if (parent.id === 'markdown-converter-highlight' ||
+      parent.id === 'markdown-converter-instruction' ||
+      parent.id === 'markdown-converter-action-panel') return null;
+
+  return parent;
+}
+
+// Get navigation information based on current mode
+function getNavigationInfo(element, mode) {
+  if (mode === 'expand') {
+    // Expand mode: navigate in parent level
+    const parent = getValidParent(element);
+    return {
+      canGoUp: parent !== null,
+      canGoDown: parent !== null,
+      canGoLeft: parent ? getValidSibling(parent, 'previous') !== null : false,
+      canGoRight: parent ? getValidSibling(parent, 'next') !== null : false
+    };
+  } else {
+    // Shrink mode: navigate in children level
+    const children = element ? Array.from(element.children || []) : [];
+    const validChildren = children.filter(c => {
+      const tag = c.tagName.toLowerCase();
+      return tag !== 'script' && tag !== 'style' && tag !== 'noscript';
+    });
+
+    return {
+      canGoUp: validChildren.length > 1, // Can navigate between children
+      canGoDown: validChildren.length > 1,
+      canGoLeft: getValidChild(element, 'first') !== null,
+      canGoRight: getValidChild(element, 'last') !== null
+    };
+  }
+}
+
+// Navigate in a specific direction based on current mode
 function navigateDirection(direction) {
   if (!currentSelectedElement) return;
 
   let newElement = null;
 
-  switch (direction) {
-    case 'up':
-      // Go to previous sibling
-      newElement = getValidSibling(currentSelectedElement, 'previous');
-      break;
+  if (navigationMode === 'expand') {
+    // Expand mode: navigate to expand selection
+    const parent = getValidParent(currentSelectedElement);
 
-    case 'down':
-      // Go to next sibling
-      newElement = getValidSibling(currentSelectedElement, 'next');
-      break;
-
-    case 'left':
-      // Go to first child
-      newElement = getValidChild(currentSelectedElement);
-      break;
-
-    case 'right':
-      // Go to parent
-      const parent = currentSelectedElement.parentElement;
-      if (parent && parent.tagName !== 'HTML' && parent.tagName !== 'BODY' &&
-          parent.id !== 'markdown-converter-highlight' &&
-          parent.id !== 'markdown-converter-instruction' &&
-          parent.id !== 'markdown-converter-action-panel') {
+    switch (direction) {
+      case 'up':
+      case 'down':
+        // Go to parent element (expand upward)
         newElement = parent;
-      }
-      break;
+        break;
+
+      case 'left':
+        // Go to parent's previous sibling (move to another branch)
+        if (parent) {
+          newElement = getValidSibling(parent, 'previous');
+        }
+        break;
+
+      case 'right':
+        // Go to parent's next sibling (move to another branch)
+        if (parent) {
+          newElement = getValidSibling(parent, 'next');
+        }
+        break;
+    }
+  } else {
+    // Shrink mode: navigate to children
+    switch (direction) {
+      case 'up':
+        // Go to previous child
+        const firstChild = getValidChild(currentSelectedElement, 'first');
+        if (firstChild) {
+          newElement = getValidSibling(firstChild, 'previous') || firstChild;
+        }
+        break;
+
+      case 'down':
+        // Go to next child
+        const child = getValidChild(currentSelectedElement, 'first');
+        if (child) {
+          newElement = getValidSibling(child, 'next') || child;
+        }
+        break;
+
+      case 'left':
+        // Go to first child (dive deeper)
+        newElement = getValidChild(currentSelectedElement, 'first');
+        break;
+
+      case 'right':
+        // Go to last child (dive deeper)
+        newElement = getValidChild(currentSelectedElement, 'last');
+        break;
+    }
   }
 
   if (!newElement) {
