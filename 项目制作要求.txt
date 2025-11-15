@@ -1,0 +1,19 @@
+<task>Build a Chrome extension (Manifest V3) that imitates Instant Data Scraper's "Try another table" action so users can cycle through/select HTML tables or DOM ranges on any page and copy them as Markdown that pastes cleanly into Heptabase.</task>
+
+<architecture>Workspace shows no checked-in files, so the next model must author the full extension scaffold (manifest.json, background/service worker, popup UI, content scripts, shared formatting utilities, packaging). Keep modules focused: popup UI gathers user commands and shows table candidates, content scripts inspect the active tab to detect/select tables or DOM ranges, background mediates permissions/clipboard writes, and formatter modules turn DOM data into Markdown (tables, headings, bullet lists) that Heptabase renders natively.</architecture>
+
+<selected_context>
+web内容_markdown_转换器/ (root): Empty workspace; no manifest, popup, or scripts exist yet. Need to create complete Chrome extension plus Markdown conversion utilities from scratch.
+</selected_context>
+
+<relationships>
+- Popup -> chrome.runtime messaging -> content script controlling DOM highlighting/table cycling.
+- Content script -> sends structured row/header data -> background/popup triggers Markdown formatter and copies output.
+- Formatter -> centralised utility ensuring Heptabase-compatible Markdown before clipboard write or file export.
+</relationships>
+
+<ambiguities>
+- Heptabase-specific Markdown quirks (callouts, internal links, special fences) are unspecified beyond "native support".
+- UX for selecting "page range" unclear: does it follow Instant Data Scraper's auto-table cycling, manual bounding box, or context menu targeting?
+- Should data also be saved locally (CSV/JSON) or solely copied to clipboard?
+</ambiguities>
