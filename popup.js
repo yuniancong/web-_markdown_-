@@ -2,6 +2,7 @@
 const detectTablesBtn = document.getElementById('detectTables');
 const nextTableBtn = document.getElementById('nextTable');
 const copyMarkdownBtn = document.getElementById('copyMarkdown');
+const exportPackageBtn = document.getElementById('exportPackage');
 const selectRangeBtn = document.getElementById('selectRange');
 const statusDiv = document.getElementById('status');
 const tableCountP = document.getElementById('tableCount');
@@ -38,6 +39,7 @@ function updateUI(data) {
     tablesDetected = data.tableCount > 0;
     nextTableBtn.disabled = !tablesDetected;
     copyMarkdownBtn.disabled = !tablesDetected;
+    exportPackageBtn.disabled = !tablesDetected;
   }
 
   if (data.currentIndex !== undefined && data.tableCount > 0) {
@@ -48,6 +50,7 @@ function updateUI(data) {
     currentMarkdown = data.markdown;
     previewContent.textContent = data.markdown;
     copyMarkdownBtn.disabled = !data.markdown;
+    exportPackageBtn.disabled = !data.markdown;
   }
 
   if (data.preview !== undefined) {
@@ -141,6 +144,71 @@ copyMarkdownBtn.addEventListener('click', async () => {
   }
 });
 
+// Export package with images
+exportPackageBtn.addEventListener('click', async () => {
+  if (!currentMarkdown) {
+    updateStatus('No content to export', 'error');
+    return;
+  }
+
+  updateStatus('Preparing export package...');
+
+  try {
+    // Get current tab URL
+    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tabs[0]) {
+      throw new Error('No active tab');
+    }
+
+    const pageUrl = tabs[0].url;
+    const pageTitle = tabs[0].title || 'export';
+    const filename = pageTitle.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50);
+
+    updateStatus('Downloading images...');
+
+    // Create package with images
+    const packageData = await ImageHandler.createPackage(
+      currentMarkdown,
+      pageUrl,
+      filename
+    );
+
+    if (packageData.hasImages) {
+      updateStatus(`Downloaded ${packageData.successCount}/${packageData.totalImages} images, creating ZIP...`);
+    } else {
+      updateStatus('No images found, creating ZIP...');
+    }
+
+    // Create ZIP file
+    const zipBlob = await ImageHandler.createZip(packageData, filename);
+
+    // Trigger download
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${filename}.zip`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    // Clean up
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    const message = packageData.hasImages
+      ? `Package exported with ${packageData.successCount} image(s)!`
+      : 'Package exported (no images)!';
+    updateStatus(message, 'success');
+
+    // Reset status after 3 seconds
+    setTimeout(() => {
+      updateStatus('Ready to extract content');
+    }, 3000);
+  } catch (error) {
+    updateStatus('Export failed: ' + error.message, 'error');
+    console.error('Export error:', error);
+  }
+});
+
 // Select custom range
 selectRangeBtn.addEventListener('click', async () => {
   if (!currentTabId) {
@@ -178,5 +246,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     });
     updateStatus('Range selected and converted', 'success');
     copyMarkdownBtn.disabled = false;
+    exportPackageBtn.disabled = false;
   }
 });
